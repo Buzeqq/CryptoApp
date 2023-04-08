@@ -8,6 +8,7 @@
     </Application.DataTemplates>
 
     <Application.Styles>
-        <FluentTheme Mode="Light"/>
+        <FluentTheme Mode="Dark"/>
+        <StyleInclude Source="avares://CryptoApp/Styles/Icons.axaml"/>
     </Application.Styles>
 </Application>

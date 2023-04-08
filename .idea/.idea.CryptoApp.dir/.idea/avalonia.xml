@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AvaloniaProject">
+    <option name="projectPerEditor">
+      <map>
+        <entry key="App.axaml" value="CryptoApp.csproj" />
+        <entry key="PeerCard.axaml" value="CryptoApp.csproj" />
+        <entry key="Styles/ContactCard.axaml" value="CryptoApp.csproj" />
+        <entry key="Styles/Icons.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/ContactCard.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/ContactCard1.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/MainWindow.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/SettingsWindow.axaml" value="CryptoApp.csproj" />
+      </map>
+    </option>
+  </component>
+</project>
