@@ -1,17 +1,13 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
 namespace CryptoApp.Views;
 
-public partial class SettingsWindow : Window
+public partial class HomeScreenView : UserControl
 {
-    public SettingsWindow()
+    public HomeScreenView()
     {
         InitializeComponent();
-#if DEBUG
-        this.AttachDevTools();
-#endif
     }
 
     private void InitializeComponent()

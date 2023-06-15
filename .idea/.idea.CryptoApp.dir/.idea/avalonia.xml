@@ -4,13 +4,22 @@
     <option name="projectPerEditor">
       <map>
         <entry key="App.axaml" value="CryptoApp.csproj" />
+        <entry key="MVVM/Views/HomeScreenView.axaml" value="CryptoApp.csproj" />
+        <entry key="MVVM/Views/HomeView.axaml" value="CryptoApp.csproj" />
+        <entry key="MVVM/Views/LockscreenView.axaml" value="CryptoApp.csproj" />
+        <entry key="MVVM/Views/MainWindow.axaml" value="CryptoApp.csproj" />
+        <entry key="MVVM/Views/MainWindowView.axaml" value="CryptoApp.csproj" />
         <entry key="PeerCard.axaml" value="CryptoApp.csproj" />
         <entry key="Styles/ContactCard.axaml" value="CryptoApp.csproj" />
         <entry key="Styles/Icons.axaml" value="CryptoApp.csproj" />
         <entry key="Views/ContactCard.axaml" value="CryptoApp.csproj" />
         <entry key="Views/ContactCard1.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/HomeScreenView.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/LockScreenView.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/LockscreenView.axaml" value="CryptoApp.csproj" />
         <entry key="Views/MainWindow.axaml" value="CryptoApp.csproj" />
         <entry key="Views/SettingsWindow.axaml" value="CryptoApp.csproj" />
+        <entry key="Views/asd.axaml" value="CryptoApp.csproj" />
       </map>
     </option>
   </component>
