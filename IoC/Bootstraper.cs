@@ -1,4 +1,6 @@
 using System;
+using CryptoApp.Communication.Interfaces;
+using CryptoApp.Communication.Server;
 using CryptoApp.IoC.Extensions;
 using CryptoApp.Services.Implementations;
 using CryptoApp.Services.Interfaces;
@@ -21,13 +23,21 @@ public static class Bootstraper
         ));
         
         // view models
-        services.Register(() => new HomeScreenViewModel());
+        services.Register(() => new HomeScreenViewModel(
+            resolver.GetRequiredService<IManagableServer>()
+        ));
         services.Register(() => new LockScreenViewModel(
             resolver.GetRequiredService<INavigationService>(),
             resolver.GetRequiredService<IKeyManagingService>()
         ));
         services.Register(() => new MainWindowViewModel(
             resolver.GetRequiredService<INavigationService>()
+        ));
+        
+        // server
+        services.RegisterLazySingleton<IManagableServer>(() => new Server(
+            int.Parse(Environment.GetEnvironmentVariable("CRY_PORT") ?? "20000"),
+            resolver.GetRequiredService<IKeyManagingService>()
         ));
     }
 }

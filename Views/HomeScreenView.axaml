@@ -2,7 +2,45 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:CryptoApp.ViewModels"
+             xmlns:converters="clr-namespace:CryptoApp.Styles.Converters"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-             x:Class="CryptoApp.Views.HomeScreenView">
-    Home screen!
+             x:Class="CryptoApp.Views.HomeScreenView"
+             x:CompileBindings="True"
+             x:DataType="viewModels:HomeScreenViewModel">
+    
+    <Design.DataContext>
+        <viewModels:HomeScreenViewModel />
+    </Design.DataContext>
+    
+    <UserControl.Resources>
+        <converters:BoolToBrushConverter x:Key="BoolToBrushConverter"/>
+        <converters:BoolToTextConverter x:Key="BoolToTextConverter"/>
+    </UserControl.Resources>
+    
+    <Grid DataContext="{Binding .}" 
+          ColumnDefinitions="200,*">
+
+        <StackPanel Background="#2F3136">
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Status"
+                       VerticalAlignment="Center"
+                       FontWeight="Medium"
+                       Foreground="Gray"
+                       Margin="8, 8, 0, 0"/>
+                <Canvas>
+                    <Ellipse Width="10" Height="10" 
+                             Fill="{Binding Connected, 
+                             Converter={StaticResource BoolToBrushConverter}}"
+                             Margin="8, 15, 0, 0"/>
+                </Canvas>
+            </StackPanel>
+            
+            <Button FontWeight="Regular" Padding="62 4" Margin="8 5"
+                    Content="{Binding Connected,
+                    Converter={StaticResource BoolToTextConverter}}"
+                    Command="{Binding ToggleServerCommand}"/>
+        </StackPanel>
+        
+    </Grid>
 </UserControl>
