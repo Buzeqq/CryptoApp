@@ -57,4 +57,4 @@ jobs:
         prerelease: true
         automatic_release_tag: "${{ env.release_tag }}"
         files: |
-          CryptoApp ${{ matrix.configuration }}-${{ env.release_tag }}.zip
+          *.zip
