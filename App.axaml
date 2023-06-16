@@ -12,5 +12,6 @@
 
     <Application.Styles>
         <FluentTheme Mode="Dark"/>
+        <StyleInclude Source="avares://CryptoApp/Styles/Icons.axaml" />
     </Application.Styles>
 </Application>

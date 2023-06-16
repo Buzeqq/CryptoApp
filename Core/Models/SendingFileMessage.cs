@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CryptoApp.Communication.Interfaces;
 
-namespace CryptoApp.Communication.Models;
+namespace CryptoApp.Core.Models;
 
 public record SendingFileMessage(long Id, byte[] Payload) : ISerializable
 {

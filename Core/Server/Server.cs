@@ -7,28 +7,33 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using CryptoApp.Communication.Enums;
+using Avalonia.Threading;
 using CryptoApp.Communication.Interfaces;
-using CryptoApp.Communication.Models;
-using CryptoApp.Communication.Services;
-using CryptoApp.Communication.Utilities;
+using CryptoApp.Core.Enums;
+using CryptoApp.Core.Models;
+using CryptoApp.Core.Utilities;
+using CryptoApp.Repositories.Interfaces;
+using CryptoApp.Services.Implementations;
 using CryptoApp.Services.Interfaces;
+using FluentAssertions;
 
-namespace CryptoApp.Communication.Server;
+namespace CryptoApp.Core.Server;
 
-public class Server : IManagableServer
+public class Server : IManageableServer
 {
+    private readonly IMessageRepository _messageRepository;
     private readonly TcpListener _server;
-    private int Port { get; }
+    public int Port { get; }
     private IKeyManagingService KeyManagingService { get; }
     
     private CryptoService CryptoService { get; }
 
-    public Server(int port, IKeyManagingService keyManagingService)
+    public Server(int port, IKeyManagingService keyManagingService, IMessageRepository messageRepository)
     {
         Port = port;
         _server = new TcpListener(IPAddress.Loopback, Port);
         KeyManagingService = keyManagingService;
+        _messageRepository = messageRepository;
         CryptoService = new CryptoService(Aes.Create());
     }
 
@@ -39,6 +44,10 @@ public class Server : IManagableServer
     }
 
     public bool IsRunning { get; private set; }
+    public string GetPort()
+    {
+        return Port.ToString();
+    }
 
     public async void Start()
     {
@@ -161,12 +170,10 @@ public class Server : IManagableServer
     
     private async Task HandleTextMessageAsync(StreamWriter sw, StreamReader sr, Message message)
     {
-        if (KeyManagingService.SessionKey is null)
-        {
-            return;
-        }
-        
-        var decryptedMessage = await CryptoService.DecryptAsync(message, KeyManagingService.SessionKey);
+        KeyManagingService.SessionKey.Should().NotBeNull();
+
+        var decryptedMessage = await CryptoService.DecryptAsync(message, KeyManagingService.SessionKey!);
+        Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(decryptedMessage)));
         Console.WriteLine($"Received message:\n{DateTime.Now}: {decryptedMessage}");
     }
 

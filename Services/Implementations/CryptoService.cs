@@ -4,13 +4,15 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using CryptoApp.Communication.Interfaces;
-using CryptoApp.Communication.Models;
+using CryptoApp.Core.Models;
+using CryptoApp.Services.Interfaces;
 
-namespace CryptoApp.Communication.Services;
+namespace CryptoApp.Services.Implementations;
 
-public class CryptoService : IDisposable
+public class CryptoService : ICryptoService, IDisposable
 {
     private Aes Aes { get; }
+    public CipherMode Mode { get; set; }
 
     public CryptoService(Aes aes)
     {
@@ -19,10 +21,10 @@ public class CryptoService : IDisposable
         Aes.Mode = CipherMode.CBC;
     }
     
-    public async Task<EncryptedPayload> EncryptAsync(byte[] key, CipherMode mode, string message)
+    public async Task<EncryptedPayload> EncryptAsync(byte[] key, string message)
     {
         Aes.Key = key;
-        Aes.Mode = mode;
+        Aes.Mode = Mode;
         Aes.Padding = PaddingMode.PKCS7;
         Aes.GenerateIV();
         
@@ -36,11 +38,11 @@ public class CryptoService : IDisposable
         return new EncryptedPayload(Aes, ms.ToArray());
     }
     
-    public async Task<EncryptedPayload> EncryptAsync<T>(byte[] key, CipherMode mode, T message)
+    public async Task<EncryptedPayload> EncryptAsync<T>(byte[] key, T message)
     where T : class, ISerializable
     {
         Aes.Key = key;
-        Aes.Mode = mode;
+        Aes.Mode = Mode;
         Aes.Padding = PaddingMode.PKCS7;
         Aes.GenerateIV();
         

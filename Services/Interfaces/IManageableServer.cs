@@ -1,7 +1,8 @@
 namespace CryptoApp.Communication.Interfaces;
 
-public interface IManagableServer
+public interface IManageableServer
 {
+    int Port { get; }
     void Start();
     void Stop();
 

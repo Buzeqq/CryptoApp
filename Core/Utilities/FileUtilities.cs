@@ -3,7 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 
-namespace CryptoApp.Communication.Utilities;
+namespace CryptoApp.Core.Utilities;
 
 public static class FileUtilities
 {

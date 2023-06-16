@@ -1,7 +1,11 @@
 using System;
+using System.Security.Cryptography;
 using CryptoApp.Communication.Interfaces;
-using CryptoApp.Communication.Server;
+using CryptoApp.Core.Server;
+using CryptoApp.Core.Utilities;
 using CryptoApp.IoC.Extensions;
+using CryptoApp.Repositories.Implementations;
+using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Implementations;
 using CryptoApp.Services.Interfaces;
 using CryptoApp.ViewModels;
@@ -13,6 +17,9 @@ public static class Bootstraper
 {
     public static void Register(IMutableDependencyResolver services, IReadonlyDependencyResolver resolver)
     {
+        // repositories
+        services.RegisterLazySingleton<IMessageRepository>(() => new MessageRepository());
+        
         // services
         services.RegisterLazySingleton<IKeyManagingService>(() => new KeyManagingService());
         services.RegisterLazySingleton<Func<Type, ViewModelBase>>(() => viewModelType => 
@@ -21,10 +28,19 @@ public static class Bootstraper
         services.RegisterLazySingleton<INavigationService>(() => new NavigationService(
             resolver.GetRequiredService<Func<Type, ViewModelBase>>()
         ));
+        services.RegisterLazySingleton<IConnectionService>(() => new ConnectionService(
+            resolver.GetRequiredService<IKeyManagingService>(),
+            resolver.GetRequiredService<ICryptoService>()
+        ));
+        services.Register<ICryptoService>(() => new CryptoService(
+            Aes.Create()
+        ));
         
         // view models
         services.Register(() => new HomeScreenViewModel(
-            resolver.GetRequiredService<IManagableServer>()
+            resolver.GetRequiredService<IManageableServer>(),
+            resolver.GetRequiredService<IConnectionService>(),
+            resolver.GetRequiredService<IMessageRepository>()
         ));
         services.Register(() => new LockScreenViewModel(
             resolver.GetRequiredService<INavigationService>(),
@@ -35,9 +51,10 @@ public static class Bootstraper
         ));
         
         // server
-        services.RegisterLazySingleton<IManagableServer>(() => new Server(
-            int.Parse(Environment.GetEnvironmentVariable("CRY_PORT") ?? "20000"),
-            resolver.GetRequiredService<IKeyManagingService>()
+        services.RegisterLazySingleton<IManageableServer>(() => new Server(
+            PortUtilities.GetRandomUnusedPort(),
+            resolver.GetRequiredService<IKeyManagingService>(),
+            resolver.GetRequiredService<IMessageRepository>()
         ));
     }
 }

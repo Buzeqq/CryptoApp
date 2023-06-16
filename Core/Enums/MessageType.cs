@@ -1,4 +1,4 @@
-namespace CryptoApp.Communication.Enums;
+namespace CryptoApp.Core.Enums;
 
 public enum MessageType
 {

@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:CryptoApp.ViewModels"
              xmlns:converters="clr-namespace:CryptoApp.Styles.Converters"
+             xmlns:models="clr-namespace:CryptoApp.Models"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="CryptoApp.Views.HomeScreenView"
              x:CompileBindings="True"
@@ -23,24 +24,111 @@
 
         <StackPanel Background="#2F3136">
             <StackPanel Orientation="Horizontal">
-                <Label Content="Status"
+                <Label Content="Server status"
                        VerticalAlignment="Center"
                        FontWeight="Medium"
                        Foreground="Gray"
-                       Margin="8, 8, 0, 0"/>
+                       Margin="8 8 0 0"/>
+                <Canvas>
+                    <Ellipse Width="10" Height="10" 
+                             Fill="{Binding Listening, 
+                             Converter={StaticResource BoolToBrushConverter}}"
+                             Margin="8 15 0 0"/>
+                </Canvas>
+            </StackPanel>
+            <Label VerticalAlignment="Center" 
+                   FontWeight="Medium"
+                   Margin="8 8 0 0"
+                   Foreground="Gray" 
+                   Content="{Binding ServerPort, StringFormat='Port: {0}'}"/>
+            <Button FontWeight="Regular" Padding="62 4" Margin="8 5"
+                    Content="{Binding Listening,
+                    Converter={StaticResource BoolToTextConverter}}"
+                    Command="{Binding ToggleServerCommand}"/>
+            
+            <Label Content="Connect to"
+                   VerticalAlignment="Center"
+                   FontWeight="Medium"
+                   Foreground="Gray"
+                   Margin="8 8 0 0"/>
+            
+            <StackPanel Orientation="Horizontal" Margin="8 0 0 0">
+                <TextBox Watermark="Ip address" MinWidth="100" Text="{Binding IpAddress}"/>
+                <TextBlock Text=":" Margin="5 5 5 0"/> 
+                <TextBox Watermark="Port" Text="{Binding Port}"/>
+            </StackPanel>
+            <Button FontWeight="Regular" Padding="62 4 " Margin="8 5"
+                    Content="Connect"
+                    Command="{Binding TryToConnectCommand}"/>
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Connected"
+                       VerticalAlignment="Center"
+                       FontWeight="Medium"
+                       Foreground="Gray"
+                       Margin="8 8 0 0"/>
                 <Canvas>
                     <Ellipse Width="10" Height="10" 
                              Fill="{Binding Connected, 
                              Converter={StaticResource BoolToBrushConverter}}"
-                             Margin="8, 15, 0, 0"/>
+                             Margin="8 15 0 0"/>
                 </Canvas>
             </StackPanel>
-            
-            <Button FontWeight="Regular" Padding="62 4" Margin="8 5"
-                    Content="{Binding Connected,
-                    Converter={StaticResource BoolToTextConverter}}"
-                    Command="{Binding ToggleServerCommand}"/>
+            <StackPanel Orientation="Horizontal">
+                <Label Content="Cipher mode:" 
+                       Margin="8 8 8 0"
+                       FontWeight="Medium"
+                       Foreground="Gray"/>
+                <ComboBox SelectedIndex="{Binding CipherModeIndex}" Margin="0 8 0 0">
+                    <ComboBoxItem>CBC</ComboBoxItem>
+                    <ComboBoxItem>ECB</ComboBoxItem>
+                </ComboBox>
+            </StackPanel>
         </StackPanel>
         
+        <Grid Grid.Column="1" RowDefinitions="*,70">
+            <ItemsRepeater 
+                Background="Transparent"
+                Margin="8 0 0 0"
+                Items="{Binding MessageRepository.Messages}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate DataType="models:Message">
+                        <Border Margin="0,10,0,0"
+                                Padding="5">
+                            <TextBlock Text="{Binding Content}"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+            <Grid Grid.Row="1" ColumnDefinitions="*,90">
+                <TextBox
+                    Height="50"
+                    Watermark="Type a message you want to send here..."
+                    Text="{Binding Message}"
+                    Grid.ColumnSpan="2"
+                    Background="#3e4147"
+                    CornerRadius="8"
+                    VerticalAlignment="Center"
+                    TextWrapping="Wrap"
+                    Padding="8 14 120 0"
+                    Foreground="Gray"
+                    CaretBrush="Gray">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Command="{Binding SendCommand}" Gesture="Enter"/>
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <StackPanel 
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0 0 16 0">
+                    <Button Width="20" Height="20" Margin="5 5 16 0" Background="Transparent">
+                        <PathIcon Data="{StaticResource AttachRegular}"/>
+                    </Button>
+                    <Button Width="20" Height="20" Margin="5 5 16 0" Background="Transparent">
+                        <PathIcon Data="{StaticResource SendRegular}"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

@@ -12,8 +12,6 @@ public class LockScreenViewModel : ViewModelBase
     private readonly INavigationService _navigationService;
     private bool _foundKeys;
     
-    public string Passphrase { get; set; }
-
     private string _prompt;
     public string Prompt
     {
@@ -24,7 +22,8 @@ public class LockScreenViewModel : ViewModelBase
             this.RaisePropertyChanged();
         }
     }
-
+    
+    public string Passphrase { get; set; }
     public ReactiveCommand<Unit, Unit> ValidatePassphraseAsyncCommand { get; }
 
     private IObservable<Unit> ValidatePassphrase()
