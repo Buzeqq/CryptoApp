@@ -19,7 +19,11 @@
         VerticalAlignment="Center" 
         Spacing="10">
         <TextBlock Text="{Binding Prompt}" Padding="5"/>
-        <TextBox PasswordChar="*" Width="150" Text="{Binding Passphrase}"/>
+        <TextBox PasswordChar="*" Width="150" Text="{Binding Passphrase}">
+            <TextBox.KeyBindings>
+                <KeyBinding Command="{Binding ValidatePassphraseAsyncCommand}" Gesture="Enter"/>
+            </TextBox.KeyBindings>
+        </TextBox>
         <Button Padding="35 7" Command="{Binding ValidatePassphraseAsyncCommand}">Enter</Button>
     </StackPanel>
 </UserControl>

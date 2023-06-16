@@ -41,7 +41,7 @@
                    Margin="8 8 0 0"
                    Foreground="Gray" 
                    Content="{Binding ServerPort, StringFormat='Port: {0}'}"/>
-            <Button FontWeight="Regular" Padding="62 4" Margin="8 5"
+            <Button FontWeight="Regular" Padding="74 4" Margin="8 5"
                     Content="{Binding Listening,
                     Converter={StaticResource BoolToTextConverter}}"
                     Command="{Binding ToggleServerCommand}"/>
@@ -121,10 +121,19 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0 0 16 0">
-                    <Button Width="20" Height="20" Margin="5 5 16 0" Background="Transparent">
+                    <Button 
+                        Width="20" 
+                        Height="20" 
+                        Margin="5 5 16 0" 
+                        Background="Transparent">
                         <PathIcon Data="{StaticResource AttachRegular}"/>
                     </Button>
-                    <Button Width="20" Height="20" Margin="5 5 16 0" Background="Transparent">
+                    <Button 
+                        Width="20" 
+                        Height="20" 
+                        Margin="5 5 16 0" 
+                        Background="Transparent"
+                        Command="{Binding SendCommand}">
                         <PathIcon Data="{StaticResource SendRegular}"/>
                     </Button>
                 </StackPanel>
