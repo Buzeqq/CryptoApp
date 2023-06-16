@@ -1,0 +1,60 @@
+name: CryptoApp
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+
+  build:
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    env:
+      Solution_Name: CryptoApp.sln                                   
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 6.0.x
+
+    - name: Restore the application
+      run: dotnet restore
+      env:
+        Configuration: ${{ matrix.configuration }}
+        
+    - name: Publish the application
+      env:
+        Configuration: ${{ matrix.configuration }}
+      run: dotnet publish
+      
+    - name: Set the release tag
+      run: |
+        echo "release_tag=$(date +"%d-%m-%Y_%H-%M")" >> $GITHUB_ENV
+
+    - name: Pack release
+      working-directory: ${{github.workspace}}/bin/${{ matrix.configuration }}/net6.0/publish/
+      run: |
+        zip -r 'CryptoApp' @ "CryptoApp ${{ matrix.configuration }}-${{ env.release_tag }}.zip" .
+        mv *.zip ${{github.workspace}}
+
+    - uses: marvinpinto/action-automatic-releases@latest
+      name: Create release on GitHub
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: true
+        automatic_release_tag: "${{ env.release_tag }}"
+        files: |
+          *.zip
