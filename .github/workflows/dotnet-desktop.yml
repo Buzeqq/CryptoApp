@@ -36,16 +36,16 @@ jobs:
         Configuration: ${{ matrix.configuration }}
         
     - name: Publish the application
+      env:
+        Configuration: ${{ matrix.configuration }}
       run: dotnet publish
-        
+      
     - name: Set the release tag
       run: |
         echo "release_tag=$(date +"%d-%m-%Y_%H-%M")" >> $GITHUB_ENV
 
     - name: Pack release
       working-directory: ${{github.workspace}}/bin/${{ matrix.configuration }}/net6.0/publish/
-      env:
-        Configuration: ${{ matrix.configuration }}
       run: |
         zip -r 'CryptoApp' @ "CryptoApp-${{ matrix.configuration }}-${{ env.release_tag }}.zip" .
         mv *.zip ..
