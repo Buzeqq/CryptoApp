@@ -44,6 +44,8 @@ jobs:
 
     - name: Pack release
       working-directory: ${{github.workspace}}/bin/${{ matrix.configuration }}/net6.0/publish/
+      env:
+        Configuration: ${{ matrix.configuration }}
       run: |
         zip -r 'CryptoApp' @ "CryptoApp-${{ matrix.configuration }}-${{ env.release_tag }}.zip" .
         mv *.zip ..
