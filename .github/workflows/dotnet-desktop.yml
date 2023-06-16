@@ -48,7 +48,7 @@ jobs:
       working-directory: ${{github.workspace}}/bin/${{ matrix.configuration }}/net6.0/publish/
       run: |
         zip -r 'CryptoApp' @ "CryptoApp-${{ matrix.configuration }}-${{ env.release_tag }}.zip" .
-        mv *.zip ..
+        mv *.zip ${{github.workspace}}
 
     - uses: marvinpinto/action-automatic-releases@latest
       name: Create release on GitHub
@@ -57,4 +57,4 @@ jobs:
         prerelease: true
         automatic_release_tag: "${{ env.release_tag }}"
         files: |
-          ${{github.workspace}}/bin/${{ matrix.configuration }}/net6.0/publish/CryptoApp-${{ matrix.configuration }}-${{ env.release_tag }}.zip
+          ${{github.workspace}}/CryptoApp-${{ matrix.configuration }}-${{ env.release_tag }}.zip
