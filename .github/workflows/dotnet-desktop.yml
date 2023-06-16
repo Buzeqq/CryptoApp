@@ -9,12 +9,12 @@ on:
 jobs:
 
   build:
-
     strategy:
       matrix:
         configuration: [Debug, Release]
 
     runs-on: ubuntu-latest
+    permissions: write-all
 
     env:
       Solution_Name: CryptoApp.sln                                   
