@@ -13,6 +13,7 @@ using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Interfaces;
 using FluentAssertions;
 using ReactiveUI;
+using Serilog;
 
 namespace CryptoApp.Services.Implementations;
 
@@ -21,6 +22,8 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
     private readonly IKeyManagingService _keyManagingService;
     private readonly ICryptoService _cryptoService;
     private readonly IMessageRepository _messageRepository;
+    private readonly ILogger _logger;
+    private readonly IBenchmarkService _benchmarkService;
     
     private readonly TcpClient _client;
     private NetworkStream? _networkStream;
@@ -106,7 +109,8 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         var message = JsonSerializer.Deserialize<Message>(jsonReply!);
         message.Should().NotBeNull();
         
-        Console.WriteLine($"Public key received: {message!.Payload}");
+        _logger.Information("Public key received: {Payload}", message!.Payload);
+        
         _keyManagingService.LoadRecipientPublicKey(message.Payload);
     }
 
@@ -117,7 +121,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
 
         if (_keyManagingService.SessionKey is null) _keyManagingService.GenerateSessionKey();
         
-        Console.WriteLine($"New session key: {Convert.ToBase64String(_keyManagingService.SessionKey!)}");
+        _logger.Information("New session key: {Base64String}", Convert.ToBase64String(_keyManagingService.SessionKey!));
         var encryptedSessionKey = _keyManagingService.RecipientProvider.Encrypt(_keyManagingService.SessionKey!, true);
         var sessionKeyString = Convert.ToBase64String(encryptedSessionKey.AsSpan());
         
@@ -130,8 +134,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         var receiveConfirmationMessage = JsonSerializer.Deserialize<Message>(receiveConfirmationString!);
         receiveConfirmationMessage.Should().NotBeNull();
         receiveConfirmationMessage!.MessageType.Should().Be(MessageType.SessionKeyMessageReceived);
-        
-        Console.WriteLine("Successful session key exchange!");
+        _logger.Information("Session key exchanged successfully");
     }
     
     public async Task SendFileAsync(string path)
@@ -143,8 +146,9 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         
         var fileInfo = new FileInfo(path);
         var numberOfChunks = (long) Math.Ceiling((double)fileInfo.Length / bufferSize);
-        Console.WriteLine($"File size: {fileInfo.Length}, # of chunks: {numberOfChunks}");
-        
+        _logger.Information("Sending file: {FileInfoName}, {FileInfoLength}, in {NumberOfChunks} chunks", 
+            fileInfo.Name, fileInfo.Length, numberOfChunks);
+
         var encryptedFileSendBeginMessage = await _cryptoService.EncryptAsync(
             _keyManagingService.SessionKey!, new BeginFileMessage(fileInfo.Length, fileInfo.Name, numberOfChunks));
         var encryptedFileInfoMessage = new Message(HostName, encryptedFileSendBeginMessage.Serialize(), 
@@ -184,11 +188,13 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         switch (responseMessage.MessageType)
         {
             case MessageType.SendingFileSuccess:
-                Console.WriteLine("Sending file: success!");
+                _benchmarkService.StopTimeBenchmark();
+                _logger.Information("Managed to send file in {Result}", _benchmarkService.GetResult());
+                _logger.Information("File sent successfully");
                 _messageRepository.Add(new Models.Message(HostName, $"Sending file {fileInfo.Name}: success!"));
                 break;
             case MessageType.SendingFileFailure:
-                Console.WriteLine("Sending file: failure!");
+                _logger.Error("Failed to send file");
                 _messageRepository.Add(new Models.Message(HostName, $"Sending file {fileInfo.Name}: failure!"));
                 break;
             
@@ -210,11 +216,13 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         IsSendingFile = false;
     }
 
-    public ConnectionService(IKeyManagingService keyManagingService, ICryptoService cryptoService, IMessageRepository messageRepository)
+    public ConnectionService(IKeyManagingService keyManagingService, ICryptoService cryptoService, IMessageRepository messageRepository, ILogger logger, IBenchmarkService benchmarkService)
     {
         _keyManagingService = keyManagingService;
         _cryptoService = cryptoService;
         _messageRepository = messageRepository;
+        _logger = logger;
+        _benchmarkService = benchmarkService;
         _client = new TcpClient();
     }
 

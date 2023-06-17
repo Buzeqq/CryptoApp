@@ -16,12 +16,14 @@ using CryptoApp.Services.Implementations;
 using CryptoApp.Services.Interfaces;
 using FluentAssertions;
 using ReactiveUI;
+using Serilog;
 
 namespace CryptoApp.Core.Server;
 
 public class Server : ReactiveObject, IManageableServer
 {
     private readonly IMessageRepository _messageRepository;
+    private readonly ILogger _logger;
     private TcpListener? _server;
     public IPAddress Interface { get; set; }
     public int Port { get; }
@@ -36,7 +38,7 @@ public class Server : ReactiveObject, IManageableServer
     public bool IsDownloading
     {
         get => _isDownloading;
-        set
+        private set
         {
             _isDownloading = value;
             this.RaisePropertyChanged();
@@ -48,18 +50,19 @@ public class Server : ReactiveObject, IManageableServer
     public int DownloadPercentProgress
     {
         get => _downloadPercentProgress;
-        set
+        private set
         {
             _downloadPercentProgress = value;
             this.RaisePropertyChanged();
         }
     }
 
-    public Server(int port, IKeyManagingService keyManagingService, IMessageRepository messageRepository)
+    public Server(int port, IKeyManagingService keyManagingService, IMessageRepository messageRepository, ILogger logger)
     {
         Port = port;
         KeyManagingService = keyManagingService;
         _messageRepository = messageRepository;
+        _logger = logger;
         CryptoService = new CryptoService(Aes.Create());
     }
 
@@ -77,7 +80,7 @@ public class Server : ReactiveObject, IManageableServer
     {
         _server = new TcpListener(Interface, Port);
         _server.Start();
-        Console.WriteLine($"Listening port: {Interface}:{Port}");
+        _logger.Information("Server starts listening on {Interface}:{Port}", Interface, Port);
         IsRunning = true;
         while (true)
         {
@@ -113,15 +116,11 @@ public class Server : ReactiveObject, IManageableServer
             }
             
             var message = JsonSerializer.Deserialize<Message>(messageString);
-            if (message is null)
-            {
-                Console.WriteLine("Failed to parse message!");
-                break;
-            }
+            message.Should().NotBeNull();
 
-            if (message.MessageType is MessageType.DisconnectedMessage)
+            if (message!.MessageType is MessageType.DisconnectedMessage)
             {
-                Console.WriteLine("Connected client terminated session...");
+                _logger.Information("Connected client terminated session...");
                 break;
             }
 
@@ -129,7 +128,7 @@ public class Server : ReactiveObject, IManageableServer
             {
                 MessageType.SessionKeyMessage => HandleSessionKeyAsync(sw, sr, message),
                 MessageType.KeyExchangeMessage => HandleKeyExchangeAsync(sw, sr, message),
-                MessageType.TextMessage => HandleTextMessageAsync(sw, sr, message),
+                MessageType.TextMessage => HandleTextMessageAsync(message),
                 MessageType.SendingFileBegin => HandleSendFileBeginAsync(sw, sr, message),
                 _ => throw new ArgumentOutOfRangeException()
             };
@@ -143,7 +142,8 @@ public class Server : ReactiveObject, IManageableServer
 
         var decryptedMessage = await CryptoService.DecryptAsync<BeginFileMessage>(message, KeyManagingService.SessionKey!);
         IsDownloading = true;
-        Console.WriteLine($"Upcoming file size: {decryptedMessage.SizeInBytes}, name: {decryptedMessage.FileName}");
+        _logger.Information("Upcoming file size: {DecryptedMessageSizeInBytes}, name: {DecryptedMessageFileName}", 
+            decryptedMessage.SizeInBytes, decryptedMessage.FileName);
 
         var tmpFilePath = Path.Combine(Path.GetTempPath(), $"CryptoApp-{Guid.NewGuid()}");
         await using var fs = new FileStream(tmpFilePath, FileMode.Create);
@@ -192,7 +192,7 @@ public class Server : ReactiveObject, IManageableServer
         IsDownloading = false;
     }
     
-    private async IAsyncEnumerable<SendingFileMessage> ReadFileContent(StreamReader sr)
+    private async IAsyncEnumerable<SendingFileMessage> ReadFileContent(TextReader sr)
     {
         KeyManagingService.SessionKey.Should().NotBeNull();
         
@@ -207,16 +207,16 @@ public class Server : ReactiveObject, IManageableServer
         }
     }
     
-    private async Task HandleTextMessageAsync(StreamWriter sw, StreamReader sr, Message message)
+    private async Task HandleTextMessageAsync(Message message)
     {
         KeyManagingService.SessionKey.Should().NotBeNull();
         
         var decryptedMessage = await CryptoService.DecryptAsync(message, KeyManagingService.SessionKey!);
+        _logger.Information("Message received from: {Sender}: {DecryptedMessage}", message.Sender, decryptedMessage);
         Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(message.Sender, decryptedMessage)));
-        Console.WriteLine($"Received message:\n{DateTime.Now}: {decryptedMessage}");
     }
 
-    private async Task HandleKeyExchangeAsync(StreamWriter sw, StreamReader sr, Message? keyMessage = null)
+    private async Task HandleKeyExchangeAsync(TextWriter sw, TextReader sr, Message? keyMessage = null)
     {
         if (keyMessage is null)
         {
@@ -227,15 +227,14 @@ public class Server : ReactiveObject, IManageableServer
             keyMessage.Should().NotBeNull();
         }
         
-
-        Console.WriteLine($"Public key received: {keyMessage!.Payload}");
+        _logger.Information("Public key received: {Payload}", keyMessage!.Payload);
         KeyManagingService.RecipientProvider.FromXmlString(keyMessage.Payload);
 
         await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName, KeyManagingService.PublicKey, MessageType.KeyExchangeMessageReply)));
         await sw.FlushAsync();
     }
 
-    private async Task HandleSessionKeyAsync(StreamWriter sw, StreamReader sr, Message? sessionKeyMessage = null)
+    private async Task HandleSessionKeyAsync(TextWriter sw, TextReader sr, Message? sessionKeyMessage = null)
     {
         if (sessionKeyMessage is null)
         {
@@ -248,7 +247,7 @@ public class Server : ReactiveObject, IManageableServer
 
         var sessionKeyEncryptedBytes = Convert.FromBase64String(sessionKeyMessage!.Payload);
         KeyManagingService.SessionKey = KeyManagingService.HostProvider.Decrypt(sessionKeyEncryptedBytes, true);
-        Console.WriteLine($"New session key received: {Convert.ToBase64String(KeyManagingService.SessionKey)}");
+        _logger.Information("New session key received: {Base64String}", Convert.ToBase64String(KeyManagingService.SessionKey));
 
         await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName,"", MessageType.SessionKeyMessageReceived)));
         await sw.FlushAsync();

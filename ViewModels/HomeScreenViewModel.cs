@@ -12,15 +12,18 @@ using CryptoApp.Models;
 using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Interfaces;
 using ReactiveUI;
+using Serilog;
 
 namespace CryptoApp.ViewModels;
 
 public class HomeScreenViewModel : ViewModelBase
 {
+    private readonly ILogger _logger;
     public IManageableServer Server { get; }
     public IConnectionService ConnectionService { get; }
-    private string[]? _attachedFiles;
     public  IMessageRepository MessageRepository { get; }
+    private readonly IBenchmarkService _benchmarkService;
+    private string[]? _attachedFiles;
     
     private bool _listening;
     public bool Listening
@@ -46,6 +49,7 @@ public class HomeScreenViewModel : ViewModelBase
 
     private string? _message;
 
+
     public string? Message
     {
         get => _message;
@@ -56,23 +60,24 @@ public class HomeScreenViewModel : ViewModelBase
     public string? IpAddress { get; set; }
     public string? Port { get; set; }
     public string ServerPort { get; }
-    public static string HostName => Dns.GetHostName();
+    private static string HostName => Dns.GetHostName();
     public ReactiveCommand<Unit, Unit> ToggleServerCommand { get; }
     public ReactiveCommand<Unit, Unit> TryToConnectCommand { get; }
     public ReactiveCommand<Unit, Unit> SendCommand { get; }
     public ReactiveCommand<Unit, Unit> AttachFilesCommand { get; }
     public int SelectedServerInterfaceIndex { get; set; }
 
-    public HomeScreenViewModel(IManageableServer server, IConnectionService connectionService, IMessageRepository messageRepository)
+    public HomeScreenViewModel(IManageableServer server, IConnectionService connectionService, IMessageRepository messageRepository, IBenchmarkService benchmarkService, ILogger logger)
     {
         Server = server;
         ServerPort = Server.Port.ToString();
         ConnectionService = connectionService;
         MessageRepository = messageRepository;
+        _benchmarkService = benchmarkService;
+        _logger = logger;
 
         ToggleServerCommand = ReactiveCommand.Create(() =>
         {
-            Console.WriteLine(SelectedServerInterfaceIndex);
             Server.Interface = Dns.GetHostEntry(Dns.GetHostName()).AddressList.ElementAt(SelectedServerInterfaceIndex);
             Server.Toggle();
             Listening = Server.IsRunning;
@@ -114,6 +119,8 @@ public class HomeScreenViewModel : ViewModelBase
             {
                 foreach (var attachedFile in _attachedFiles)
                 {
+                    _logger.Information("Starting sending file time benchmark");
+                    _benchmarkService.StartTimeBenchmark();
                     await ConnectionService.SendFileAsync(attachedFile);
                 }
 

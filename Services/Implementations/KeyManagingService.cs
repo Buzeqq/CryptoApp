@@ -3,12 +3,15 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using CryptoApp.Services.Interfaces;
+using Serilog;
 
 namespace CryptoApp.Services.Implementations;
 
 public class KeyManagingService : IKeyManagingService
 {
-    public const int SessionKeySize = 256 / 8;
+    private readonly ILogger _logger;
+    
+    private const int SessionKeySize = 256 / 8;
     public string KeyPrefix { get; private set; }
 
     public string KeyDirectory { get; }
@@ -23,8 +26,9 @@ public class KeyManagingService : IKeyManagingService
     public string PublicKeyPath => Path.Combine(KeyDirectory, KeyPrefix + "id_rsa.pub");
     public string PrivateKeyPath => Path.Combine(KeyDirectory, "private", KeyPrefix + "id_rsa");
 
-    public KeyManagingService()
+    public KeyManagingService(ILogger logger)
     {
+        _logger = logger;
         KeyPrefix = "";
         KeyDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".crypto", "keys");
         HostProvider = new RSACryptoServiceProvider();
@@ -40,17 +44,17 @@ public class KeyManagingService : IKeyManagingService
         }
         KeyPrefix = keyPrefix;
         
-        Console.WriteLine("Generating new RSA key pair...");
+        _logger.Information("Generating new RSA key pair...");
         HostProvider = new RSACryptoServiceProvider();
         File.Create(PublicKeyPath).Close();
         await File.WriteAllTextAsync(PublicKeyPath, PublicKey);
-        Console.WriteLine($"Save public key under {PublicKeyPath}");
+        _logger.Information("Public key saved under {PublicKeyPath}", PublicKeyPath);
         
         var privateKey = HostProvider.ExportEncryptedPkcs8PrivateKey(
             passphrase,
             new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA512, 10_000));
         await File.WriteAllBytesAsync(PrivateKeyPath, privateKey);
-        Console.WriteLine($"Generated private key under {PrivateKeyPath}");
+        _logger.Information("Private key saved under {PrivateKeyPath}", PrivateKeyPath);
     }
 
     public async Task LoadKeysAsync(string passphrase, string keyPrefix = "")
