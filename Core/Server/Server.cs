@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
-using CryptoApp.Communication.Interfaces;
 using CryptoApp.Core.Enums;
 using CryptoApp.Core.Models;
 using CryptoApp.Core.Utilities;
@@ -16,23 +15,49 @@ using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Implementations;
 using CryptoApp.Services.Interfaces;
 using FluentAssertions;
+using ReactiveUI;
 
 namespace CryptoApp.Core.Server;
 
-public class Server : IManageableServer
+public class Server : ReactiveObject, IManageableServer
 {
     private readonly IMessageRepository _messageRepository;
-    private readonly TcpListener _server;
+    private TcpListener? _server;
+    public IPAddress Interface { get; set; }
     public int Port { get; }
-    public string DownloadsDirectory { get; set; }
+    public string DownloadsDirectory { get; init; }
+    private static string HostName => Dns.GetHostName();
     private IKeyManagingService KeyManagingService { get; }
     
-    private CryptoService CryptoService { get; }
+    private ICryptoService CryptoService { get; }
+
+    private bool _isDownloading;
+
+    public bool IsDownloading
+    {
+        get => _isDownloading;
+        set
+        {
+            _isDownloading = value;
+            this.RaisePropertyChanged();
+        }
+    }
+
+    private int _downloadPercentProgress;
+
+    public int DownloadPercentProgress
+    {
+        get => _downloadPercentProgress;
+        set
+        {
+            _downloadPercentProgress = value;
+            this.RaisePropertyChanged();
+        }
+    }
 
     public Server(int port, IKeyManagingService keyManagingService, IMessageRepository messageRepository)
     {
         Port = port;
-        _server = new TcpListener(IPAddress.Loopback, Port);
         KeyManagingService = keyManagingService;
         _messageRepository = messageRepository;
         CryptoService = new CryptoService(Aes.Create());
@@ -40,20 +65,19 @@ public class Server : IManageableServer
 
     public void Stop()
     {
-        _server.Stop();
+        _server.Should().NotBeNull();
+        _server!.Stop();
         IsRunning = false;
+        _server = null;
     }
 
     public bool IsRunning { get; private set; }
-    public string GetPort()
-    {
-        return Port.ToString();
-    }
 
     public async void Start()
     {
+        _server = new TcpListener(Interface, Port);
         _server.Start();
-        Console.WriteLine($"Listening port: {Port}");
+        Console.WriteLine($"Listening port: {Interface}:{Port}");
         IsRunning = true;
         while (true)
         {
@@ -118,44 +142,59 @@ public class Server : IManageableServer
         KeyManagingService.SessionKey.Should().NotBeNull();
 
         var decryptedMessage = await CryptoService.DecryptAsync<BeginFileMessage>(message, KeyManagingService.SessionKey!);
+        IsDownloading = true;
         Console.WriteLine($"Upcoming file size: {decryptedMessage.SizeInBytes}, name: {decryptedMessage.FileName}");
-        
-        await using var ms = new MemoryStream();
+
+        var tmpFilePath = Path.Combine(Path.GetTempPath(), $"CryptoApp-{Guid.NewGuid()}");
+        await using var fs = new FileStream(tmpFilePath, FileMode.Create);
         var bytesLeft = decryptedMessage.SizeInBytes;
+        var chunkIndex = 0;
+        var numberOfChunks = decryptedMessage.NumberOfChunks;
         await foreach (var fileContentPart in ReadFileContent(sr))
         {
             if (fileContentPart.Payload.Length == 0) break;
-            await ms.WriteAsync(fileContentPart.Payload, 0, (int)Math.Min(bytesLeft, fileContentPart.Payload.Length));
+            await fs.WriteAsync(fileContentPart.Payload, 0, (int)Math.Min(bytesLeft, fileContentPart.Payload.Length));
+            DownloadPercentProgress = Math.Clamp((int)((chunkIndex + 1) / (double) numberOfChunks * 100), 0, 100); 
             bytesLeft -= fileContentPart.Payload.Length;
+            chunkIndex++;
         }
 
         var encryptedCheckSumMessage = JsonSerializer.Deserialize<Message>(await sr.ReadLineAsync() ?? string.Empty)
             ?? throw new JsonException();
         var checkSum = await CryptoService.DecryptAsync(encryptedCheckSumMessage, KeyManagingService.SessionKey!);
-        var fileContent = ms.ToArray();
 
-        var tmp = await FileUtilities.GetFileCheckSumAsync(fileContent);
+        var tmp = await FileUtilities.GetFileCheckSumAsync(fs);
 
         if (checkSum == tmp)
         {
             await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SendingFileSuccess)));
             await sw.FlushAsync();
-            await File.WriteAllBytesAsync(Path.Combine(DownloadsDirectory, decryptedMessage.FileName), fileContent);
+            var newFilePath = Path.Combine(DownloadsDirectory, decryptedMessage.FileName);
+            try
+            {
+                File.Copy(tmpFilePath, newFilePath);
+            }
+            catch (IOException)
+            {
+                File.Delete(newFilePath);
+                File.Copy(tmpFilePath, newFilePath);
+            }
+
             await Dispatcher.UIThread.InvokeAsync(() =>
-                _messageRepository.Add(new CryptoApp.Models.Message($"Received new file: {decryptedMessage.FileName}")));
+                _messageRepository.Add(new CryptoApp.Models.Message(HostName, $"Received new file: {decryptedMessage.FileName}")));
         }
         else
         {
             await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SendingFileFailure)));
         }
+        
+        File.Delete(tmpFilePath);
+        IsDownloading = false;
     }
     
     private async IAsyncEnumerable<SendingFileMessage> ReadFileContent(StreamReader sr)
     {
-        if (KeyManagingService.SessionKey is null)
-        {
-            yield break;
-        }
+        KeyManagingService.SessionKey.Should().NotBeNull();
         
         while (JsonSerializer.Deserialize<Message>(await sr.ReadLineAsync() ?? string.Empty) is { } message)
         {
@@ -164,7 +203,7 @@ public class Server : IManageableServer
                 yield return new SendingFileMessage(0, Array.Empty<byte>());
                 yield break;
             }
-            yield return await CryptoService.DecryptAsync<SendingFileMessage>(message, KeyManagingService.SessionKey);
+            yield return await CryptoService.DecryptAsync<SendingFileMessage>(message, KeyManagingService.SessionKey!);
         }
     }
     
@@ -173,7 +212,7 @@ public class Server : IManageableServer
         KeyManagingService.SessionKey.Should().NotBeNull();
 
         var decryptedMessage = await CryptoService.DecryptAsync(message, KeyManagingService.SessionKey!);
-        Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(decryptedMessage)));
+        Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(HostName, decryptedMessage)));
         Console.WriteLine($"Received message:\n{DateTime.Now}: {decryptedMessage}");
     }
 
@@ -182,22 +221,14 @@ public class Server : IManageableServer
         if (keyMessage is null)
         {
             var keyExchangeString = await sr.ReadLineAsync();
-            if (keyExchangeString is null)
-            {
-                Console.WriteLine("Failed to read stream!");
-                return;
-            }
+            keyExchangeString.Should().NotBeNull();
 
-            keyMessage = JsonSerializer.Deserialize<Message>(keyExchangeString);
-            if (keyMessage is null)
-            {
-                Console.WriteLine("Failed to parse json!");
-                return;
-            }
+            keyMessage = JsonSerializer.Deserialize<Message>(keyExchangeString!);
+            keyMessage.Should().NotBeNull();
         }
         
 
-        Console.WriteLine($"Public key received: {keyMessage.Payload}");
+        Console.WriteLine($"Public key received: {keyMessage!.Payload}");
         KeyManagingService.RecipientProvider.FromXmlString(keyMessage.Payload);
 
         await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(KeyManagingService.PublicKey, MessageType.KeyExchangeMessageReply)));
@@ -209,21 +240,13 @@ public class Server : IManageableServer
         if (sessionKeyMessage is null)
         {
             var sessionKeyString = await sr.ReadLineAsync();
-            if (sessionKeyString is null)
-            {
-                Console.WriteLine("Failed to read stream!");
-                return;
-            }
+            sessionKeyString.Should().NotBeNull();
         
-            sessionKeyMessage = JsonSerializer.Deserialize<Message>(sessionKeyString);
-            if (sessionKeyMessage is null)
-            {
-                Console.WriteLine("Failed to parse json!");
-                return;
-            }
+            sessionKeyMessage = JsonSerializer.Deserialize<Message>(sessionKeyString!);
+            sessionKeyMessage.Should().NotBeNull();
         }
 
-        var sessionKeyEncryptedBytes = Convert.FromBase64String(sessionKeyMessage.Payload);
+        var sessionKeyEncryptedBytes = Convert.FromBase64String(sessionKeyMessage!.Payload);
         KeyManagingService.SessionKey = KeyManagingService.HostProvider.Decrypt(sessionKeyEncryptedBytes, true);
         Console.WriteLine($"New session key received: {Convert.ToBase64String(KeyManagingService.SessionKey)}");
 

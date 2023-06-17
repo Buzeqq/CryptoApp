@@ -3,7 +3,7 @@ using CryptoApp.Communication.Interfaces;
 
 namespace CryptoApp.Core.Models;
 
-public record BeginFileMessage(long SizeInBytes, string FileName) : ISerializable
+public record BeginFileMessage(long SizeInBytes, string FileName, long NumberOfChunks) : ISerializable
 {
     public string Serialize()
     {

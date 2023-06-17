@@ -11,4 +11,8 @@ public interface ICryptoService
     Task<EncryptedPayload> EncryptAsync(byte[] key, string message);
 
     Task<EncryptedPayload> EncryptAsync<T>(byte[] key, T message) where T : class, ISerializable;
+
+    Task<string> DecryptAsync(Message message, byte[] key);
+
+    Task<T> DecryptAsync<T>(Message message, byte[] key) where T : class, ISerializable;
 }

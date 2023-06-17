@@ -10,4 +10,6 @@ public interface IConnectionService
     Task SendTextMessageAsync(string message);
     Task SendFileAsync(string path);
     CipherMode Mode { get; set; }
+    bool IsSendingFile { get; }
+    int PercentDoneSendingFile { get; }
 }

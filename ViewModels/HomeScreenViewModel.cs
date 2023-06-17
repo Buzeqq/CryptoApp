@@ -5,23 +5,20 @@ using System.Net;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Security.Cryptography;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using CryptoApp.Communication.Interfaces;
 using CryptoApp.Models;
 using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Interfaces;
-using DynamicData;
 using ReactiveUI;
 
 namespace CryptoApp.ViewModels;
 
 public class HomeScreenViewModel : ViewModelBase
 {
-    private readonly IManageableServer _server;
-    private readonly IConnectionService _connectionService;
+    public IManageableServer Server { get; }
+    public IConnectionService ConnectionService { get; }
     private string[]? _attachedFiles;
     public  IMessageRepository MessageRepository { get; }
     
@@ -47,9 +44,9 @@ public class HomeScreenViewModel : ViewModelBase
         }
     }
 
-    private string _message;
+    private string? _message;
 
-    public string Message
+    public string? Message
     {
         get => _message;
         set => this.RaiseAndSetIfChanged(ref _message, value);
@@ -59,22 +56,26 @@ public class HomeScreenViewModel : ViewModelBase
     public string? IpAddress { get; set; }
     public string? Port { get; set; }
     public string ServerPort { get; }
+    public static string HostName => Dns.GetHostName();
     public ReactiveCommand<Unit, Unit> ToggleServerCommand { get; }
     public ReactiveCommand<Unit, Unit> TryToConnectCommand { get; }
     public ReactiveCommand<Unit, Unit> SendCommand { get; }
     public ReactiveCommand<Unit, Unit> AttachFilesCommand { get; }
+    public int SelectedServerInterfaceIndex { get; set; }
 
     public HomeScreenViewModel(IManageableServer server, IConnectionService connectionService, IMessageRepository messageRepository)
     {
-        _server = server;
-        ServerPort = _server.Port.ToString();
-        _connectionService = connectionService;
+        Server = server;
+        ServerPort = Server.Port.ToString();
+        ConnectionService = connectionService;
         MessageRepository = messageRepository;
 
         ToggleServerCommand = ReactiveCommand.Create(() =>
         {
-            _server.Toggle();
-            Listening = _server.IsRunning;
+            Console.WriteLine(SelectedServerInterfaceIndex);
+            Server.Interface = Dns.GetHostEntry(Dns.GetHostName()).AddressList.ElementAt(SelectedServerInterfaceIndex);
+            Server.Toggle();
+            Listening = Server.IsRunning;
         });
         
         TryToConnectCommand = ReactiveCommand.CreateFromObservable(TryToConnect);
@@ -92,9 +93,9 @@ public class HomeScreenViewModel : ViewModelBase
             if (IpAddress is null or "" || Port is null or "") return;
             var address = IPAddress.Parse(IpAddress);
             var port = int.Parse(Port);
-            if (!_server.IsRunning) _server.Start();
+            if (!Server.IsRunning) Server.Start();
             
-            Connected = await _connectionService.ConnectAsync(address, port);
+            Connected = await ConnectionService.ConnectAsync(address, port);
         });
     }
 
@@ -102,14 +103,20 @@ public class HomeScreenViewModel : ViewModelBase
     {
         return Observable.StartAsync(async () =>
         {
-            MessageRepository.Add(new Message(Message));
-            _connectionService.Mode = IndexToMode();
-            await _connectionService.SendTextMessageAsync(Message);
+            ConnectionService.Mode = IndexToMode();
+            if (Message is not ("" or null))
+            {
+                MessageRepository.Add(new Message(HostName, Message));
+                await ConnectionService.SendTextMessageAsync(Message);
+            }
 
             if (_attachedFiles is not null && _attachedFiles.Length > 0)
             {
-                var sendTasks = _attachedFiles.Select(path => _connectionService.SendFileAsync(path));
-                await Task.WhenAll(sendTasks.ToArray());
+                foreach (var attachedFile in _attachedFiles)
+                {
+                    await ConnectionService.SendFileAsync(attachedFile);
+                }
+
                 _attachedFiles = null;
             }
             
@@ -134,9 +141,11 @@ public class HomeScreenViewModel : ViewModelBase
             var openFileDialog = new OpenFileDialog
             {
                 Title = "Select files to attach",
+                AllowMultiple = true,
                 Filters = new List<FileDialogFilter>
                 {
-                    new() { Name = "Text files", Extensions = { "txt" } }
+                    new() { Name = "Text files", Extensions = { "txt" } },
+                    new() { Name = "All files", Extensions = { "*" }}
                 }
             };
 

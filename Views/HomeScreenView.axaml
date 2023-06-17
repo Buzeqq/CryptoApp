@@ -17,12 +17,21 @@
     <UserControl.Resources>
         <converters:BoolToBrushConverter x:Key="BoolToBrushConverter"/>
         <converters:BoolToTextConverter x:Key="BoolToTextConverter"/>
+        <converters:SenderToHorizontalAlignmentConverter x:Key="SenderToHorizontalAlignmentConverter"/>
     </UserControl.Resources>
     
     <Grid DataContext="{Binding .}" 
           ColumnDefinitions="200,*">
 
         <StackPanel Background="#2F3136">
+            <Label Content="Server listening on:" 
+                   Margin="8 8 8 0"
+                   FontWeight="Medium"
+                   Foreground="Gray"/>
+            <ComboBox x:Name="availableInterfacesComboBox"
+                      SelectedIndex="{Binding SelectedServerInterfaceIndex}"
+                      Margin="0 8 0 0">
+            </ComboBox>
             <StackPanel Orientation="Horizontal">
                 <Label Content="Server status"
                        VerticalAlignment="Center"
@@ -86,19 +95,48 @@
         </StackPanel>
         
         <Grid Grid.Column="1" RowDefinitions="*,70">
-            <ItemsRepeater 
-                Background="Transparent"
-                Margin="8 0 0 0"
-                Items="{Binding MessageRepository.Messages}">
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate DataType="models:Message">
-                        <Border Margin="0,10,0,0"
-                                Padding="5">
-                            <TextBlock Text="{Binding Content}"/>
-                        </Border>
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Stretch">
+                <ScrollViewer HorizontalAlignment="Stretch">
+                    <ItemsRepeater 
+                        Background="Transparent"
+                        Margin="8 0 0 0"
+                        Items="{Binding MessageRepository.Messages}"
+                        MinHeight="630">
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate DataType="models:Message">
+                                <Border Margin="0,10,0,0"
+                                        Padding="5"
+                                        HorizontalAlignment="{Binding Sender, Converter={StaticResource SenderToHorizontalAlignmentConverter}}">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <Label Content="{Binding Sender}" Foreground="Gray" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding Content}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+                <ProgressBar
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom"
+                    IsVisible="{Binding ConnectionService.IsSendingFile}"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{Binding ConnectionService.PercentDoneSendingFile}"
+                    ShowProgressText="True"
+                    Margin="2 5"/>
+                <ProgressBar
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom"
+                    IsVisible="{Binding Server.IsDownloading}"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{Binding Server.DownloadPercentProgress}"
+                    ShowProgressText="True"
+                    Margin="2 5"/>
+            </StackPanel>
+            
+            
             <Grid Grid.Row="1" ColumnDefinitions="*,90">
                 <TextBox
                     Height="50"
@@ -111,7 +149,8 @@
                     TextWrapping="Wrap"
                     Padding="8 14 120 0"
                     Foreground="Gray"
-                    CaretBrush="Gray">
+                    CaretBrush="Gray"
+                    IsEnabled="{Binding !ConnectionService.IsSendingFile}">
                     <TextBox.KeyBindings>
                         <KeyBinding Command="{Binding SendCommand}" Gesture="Enter"/>
                     </TextBox.KeyBindings>
