@@ -86,7 +86,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         _keyManagingService.SessionKey.Should().NotBeNull();
         
         var encryptedPayload = await _cryptoService.EncryptAsync(_keyManagingService.SessionKey!, message);
-        var encryptedMessage = new Message(encryptedPayload.Serialize(), MessageType.TextMessage);
+        var encryptedMessage = new Message(HostName, encryptedPayload.Serialize(), MessageType.TextMessage);
         await _sw!.WriteLineAsync(JsonSerializer.Serialize(encryptedMessage));
         await _sw.FlushAsync();
     }
@@ -97,7 +97,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         _sr.Should().NotBeNull();
         
         await _sw!.WriteLineAsync(
-            JsonSerializer.Serialize(new Message(_keyManagingService.PublicKey, MessageType.KeyExchangeMessage)));
+            JsonSerializer.Serialize(new Message(HostName, _keyManagingService.PublicKey, MessageType.KeyExchangeMessage)));
         await _sw.FlushAsync();
         
         var jsonReply = await _sr!.ReadLineAsync();
@@ -121,7 +121,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         var encryptedSessionKey = _keyManagingService.RecipientProvider.Encrypt(_keyManagingService.SessionKey!, true);
         var sessionKeyString = Convert.ToBase64String(encryptedSessionKey.AsSpan());
         
-        await _sw!.WriteLineAsync(JsonSerializer.Serialize(new Message(sessionKeyString, MessageType.SessionKeyMessage)));
+        await _sw!.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName, sessionKeyString, MessageType.SessionKeyMessage)));
         await _sw.FlushAsync();
         
         var receiveConfirmationString = await _sr!.ReadLineAsync();
@@ -147,7 +147,7 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         
         var encryptedFileSendBeginMessage = await _cryptoService.EncryptAsync(
             _keyManagingService.SessionKey!, new BeginFileMessage(fileInfo.Length, fileInfo.Name, numberOfChunks));
-        var encryptedFileInfoMessage = new Message(encryptedFileSendBeginMessage.Serialize(), 
+        var encryptedFileInfoMessage = new Message(HostName, encryptedFileSendBeginMessage.Serialize(), 
             MessageType.SendingFileBegin);
         await _sw!.WriteLineAsync(JsonSerializer.Serialize(encryptedFileInfoMessage));
         await _sw.FlushAsync();
@@ -162,19 +162,19 @@ public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
         while ((bytesRead = await fs.ReadAsync(buffer)) > 0)
         {
             var encryptedPayload = await _cryptoService.EncryptAsync(_keyManagingService.SessionKey!, new SendingFileMessage(id++, buffer));
-            var encryptedFileContentMessage = new Message(encryptedPayload.Serialize(), MessageType.SendingFile);
+            var encryptedFileContentMessage = new Message(HostName, encryptedPayload.Serialize(), MessageType.SendingFile);
             await _sw.WriteLineAsync(JsonSerializer.Serialize(encryptedFileContentMessage));
             PercentDoneSendingFile = Math.Clamp((int)((double)bytesRead * (id + 1) / fileInfo.Length * 100), 0, 100);
         }
         await _sw.FlushAsync();
         
-        var contentEnd = new Message("", MessageType.SendingFileContentEnd);
+        var contentEnd = new Message(HostName, "", MessageType.SendingFileContentEnd);
         await _sw.WriteLineAsync(JsonSerializer.Serialize(contentEnd));
         await _sw.FlushAsync();
 
         var checkSum = await checkSumTask;
         var encryptedCheckSum = await _cryptoService.EncryptAsync(_keyManagingService.SessionKey!, checkSum);
-        var checkSumMessage = new Message(encryptedCheckSum.Serialize(), MessageType.SendingFileEnd);
+        var checkSumMessage = new Message(HostName, encryptedCheckSum.Serialize(), MessageType.SendingFileEnd);
         await _sw.WriteLineAsync(JsonSerializer.Serialize(checkSumMessage));
         await _sw.FlushAsync();
         

@@ -167,7 +167,7 @@ public class Server : ReactiveObject, IManageableServer
 
         if (checkSum == tmp)
         {
-            await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SendingFileSuccess)));
+            await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName,"", MessageType.SendingFileSuccess)));
             await sw.FlushAsync();
             var newFilePath = Path.Combine(DownloadsDirectory, decryptedMessage.FileName);
             try
@@ -181,11 +181,11 @@ public class Server : ReactiveObject, IManageableServer
             }
 
             await Dispatcher.UIThread.InvokeAsync(() =>
-                _messageRepository.Add(new CryptoApp.Models.Message(HostName, $"Received new file: {decryptedMessage.FileName}")));
+                _messageRepository.Add(new CryptoApp.Models.Message(message.Sender, $"Received new file: {decryptedMessage.FileName}")));
         }
         else
         {
-            await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SendingFileFailure)));
+            await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName, "", MessageType.SendingFileFailure)));
         }
         
         File.Delete(tmpFilePath);
@@ -210,9 +210,9 @@ public class Server : ReactiveObject, IManageableServer
     private async Task HandleTextMessageAsync(StreamWriter sw, StreamReader sr, Message message)
     {
         KeyManagingService.SessionKey.Should().NotBeNull();
-
+        
         var decryptedMessage = await CryptoService.DecryptAsync(message, KeyManagingService.SessionKey!);
-        Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(HostName, decryptedMessage)));
+        Dispatcher.UIThread.Post(() => _messageRepository.Add(new CryptoApp.Models.Message(message.Sender, decryptedMessage)));
         Console.WriteLine($"Received message:\n{DateTime.Now}: {decryptedMessage}");
     }
 
@@ -231,7 +231,7 @@ public class Server : ReactiveObject, IManageableServer
         Console.WriteLine($"Public key received: {keyMessage!.Payload}");
         KeyManagingService.RecipientProvider.FromXmlString(keyMessage.Payload);
 
-        await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(KeyManagingService.PublicKey, MessageType.KeyExchangeMessageReply)));
+        await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName, KeyManagingService.PublicKey, MessageType.KeyExchangeMessageReply)));
         await sw.FlushAsync();
     }
 
@@ -250,7 +250,7 @@ public class Server : ReactiveObject, IManageableServer
         KeyManagingService.SessionKey = KeyManagingService.HostProvider.Decrypt(sessionKeyEncryptedBytes, true);
         Console.WriteLine($"New session key received: {Convert.ToBase64String(KeyManagingService.SessionKey)}");
 
-        await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SessionKeyMessageReceived)));
+        await sw.WriteLineAsync(JsonSerializer.Serialize(new Message(HostName,"", MessageType.SessionKeyMessageReceived)));
         await sw.FlushAsync();
     }
 }
