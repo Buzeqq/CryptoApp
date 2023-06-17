@@ -12,10 +12,11 @@ using CryptoApp.Core.Utilities;
 using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Interfaces;
 using FluentAssertions;
+using ReactiveUI;
 
 namespace CryptoApp.Services.Implementations;
 
-public class ConnectionService : IConnectionService, IDisposable
+public class ConnectionService : ReactiveObject, IConnectionService, IDisposable
 {
     private readonly IKeyManagingService _keyManagingService;
     private readonly ICryptoService _cryptoService;
@@ -30,6 +31,31 @@ public class ConnectionService : IConnectionService, IDisposable
     {
         get => _cryptoService.Mode;
         set => _cryptoService.Mode = value;
+    }
+
+    public string HostName => Dns.GetHostName();
+
+    private bool _isSendingFile;
+
+    public bool IsSendingFile
+    {
+        get => _isSendingFile;
+        set
+        {
+            _isSendingFile = value;
+            this.RaisePropertyChanged();
+        }
+    }
+
+    private int _percentDoneSendingFile;
+    public int PercentDoneSendingFile
+    {
+        get => _percentDoneSendingFile;
+        set
+        {
+            _percentDoneSendingFile = value;
+            this.RaisePropertyChanged();
+        }
     }
 
     public async Task<bool> ConnectAsync(IPAddress address, int port)
@@ -112,18 +138,20 @@ public class ConnectionService : IConnectionService, IDisposable
     {
         _keyManagingService.SessionKey.Should().NotBeNull();
         File.Exists(path).Should().Be(true);
+        IsSendingFile = true;
+        const long bufferSize = 1024;
         
         var fileInfo = new FileInfo(path);
-        Console.WriteLine($"File size: {fileInfo.Length}");
+        var numberOfChunks = (long) Math.Ceiling((double)fileInfo.Length / bufferSize);
+        Console.WriteLine($"File size: {fileInfo.Length}, # of chunks: {numberOfChunks}");
         
         var encryptedFileSendBeginMessage = await _cryptoService.EncryptAsync(
-            _keyManagingService.SessionKey!, new BeginFileMessage(fileInfo.Length, fileInfo.Name));
+            _keyManagingService.SessionKey!, new BeginFileMessage(fileInfo.Length, fileInfo.Name, numberOfChunks));
         var encryptedFileInfoMessage = new Message(encryptedFileSendBeginMessage.Serialize(), 
             MessageType.SendingFileBegin);
         await _sw!.WriteLineAsync(JsonSerializer.Serialize(encryptedFileInfoMessage));
         await _sw.FlushAsync();
         
-        const long bufferSize = 4096;
         var buffer = new byte[bufferSize];
         await using var fs = File.OpenRead(path);
 
@@ -133,10 +161,10 @@ public class ConnectionService : IConnectionService, IDisposable
         int bytesRead;
         while ((bytesRead = await fs.ReadAsync(buffer)) > 0)
         {
-            Console.WriteLine(bytesRead);
             var encryptedPayload = await _cryptoService.EncryptAsync(_keyManagingService.SessionKey!, new SendingFileMessage(id++, buffer));
             var encryptedFileContentMessage = new Message(encryptedPayload.Serialize(), MessageType.SendingFile);
             await _sw.WriteLineAsync(JsonSerializer.Serialize(encryptedFileContentMessage));
+            PercentDoneSendingFile = Math.Clamp((int)((double)bytesRead * (id + 1) / fileInfo.Length * 100), 0, 100);
         }
         await _sw.FlushAsync();
         
@@ -157,11 +185,11 @@ public class ConnectionService : IConnectionService, IDisposable
         {
             case MessageType.SendingFileSuccess:
                 Console.WriteLine("Sending file: success!");
-                _messageRepository.Add(new Models.Message($"Sending file {fileInfo.Name}: success!"));
+                _messageRepository.Add(new Models.Message(HostName, $"Sending file {fileInfo.Name}: success!"));
                 break;
             case MessageType.SendingFileFailure:
                 Console.WriteLine("Sending file: failure!");
-                _messageRepository.Add(new Models.Message($"Sending file {fileInfo.Name}: failure!"));
+                _messageRepository.Add(new Models.Message(HostName, $"Sending file {fileInfo.Name}: failure!"));
                 break;
             
             case MessageType.KeyExchangeMessage:
@@ -178,6 +206,8 @@ public class ConnectionService : IConnectionService, IDisposable
             default:
                 throw new ArgumentOutOfRangeException();
         }
+
+        IsSendingFile = false;
     }
 
     public ConnectionService(IKeyManagingService keyManagingService, ICryptoService cryptoService, IMessageRepository messageRepository)

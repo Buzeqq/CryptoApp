@@ -58,7 +58,7 @@ public static class Bootstraper
         
         // server
         services.RegisterLazySingleton<IManageableServer>(() => new Server(
-            PortUtilities.GetRandomUnusedPort(),
+            NetworkUtilities.GetRandomUnusedPort(),
             resolver.GetRequiredService<IKeyManagingService>(),
             resolver.GetRequiredService<IMessageRepository>()
         ) { DownloadsDirectory = downloadsDirectory } );

@@ -4,7 +4,7 @@ using System.Net.Sockets;
 
 namespace CryptoApp.Core.Utilities;
 
-public static class PortUtilities
+public class NetworkUtilities
 {
     public static int GetRandomUnusedPort()
     {
@@ -22,7 +22,7 @@ public static class PortUtilities
         }
     }
 
-    private static bool IsPortAvailable(int port)
+    public static bool IsPortAvailable(int port)
     {
         try
         {
