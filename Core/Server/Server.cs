@@ -24,6 +24,7 @@ public class Server : IManageableServer
     private readonly IMessageRepository _messageRepository;
     private readonly TcpListener _server;
     public int Port { get; }
+    public string DownloadsDirectory { get; set; }
     private IKeyManagingService KeyManagingService { get; }
     
     private CryptoService CryptoService { get; }
@@ -114,12 +115,9 @@ public class Server : IManageableServer
 
     private async Task HandleSendFileBeginAsync(StreamWriter sw, StreamReader sr, Message message)
     {
-        if (KeyManagingService.SessionKey is null)
-        {
-            return;
-        }
+        KeyManagingService.SessionKey.Should().NotBeNull();
 
-        var decryptedMessage = await CryptoService.DecryptAsync<BeginFileMessage>(message, KeyManagingService.SessionKey);
+        var decryptedMessage = await CryptoService.DecryptAsync<BeginFileMessage>(message, KeyManagingService.SessionKey!);
         Console.WriteLine($"Upcoming file size: {decryptedMessage.SizeInBytes}, name: {decryptedMessage.FileName}");
         
         await using var ms = new MemoryStream();
@@ -133,16 +131,18 @@ public class Server : IManageableServer
 
         var encryptedCheckSumMessage = JsonSerializer.Deserialize<Message>(await sr.ReadLineAsync() ?? string.Empty)
             ?? throw new JsonException();
-        var checkSum = await CryptoService.DecryptAsync(encryptedCheckSumMessage, KeyManagingService.SessionKey);
+        var checkSum = await CryptoService.DecryptAsync(encryptedCheckSumMessage, KeyManagingService.SessionKey!);
         var fileContent = ms.ToArray();
 
-        var tmp = FileUtilities.GetFileCheckSum(fileContent);
+        var tmp = await FileUtilities.GetFileCheckSumAsync(fileContent);
 
         if (checkSum == tmp)
         {
             await sw.WriteLineAsync(JsonSerializer.Serialize(new Message("", MessageType.SendingFileSuccess)));
             await sw.FlushAsync();
-            await File.WriteAllBytesAsync(decryptedMessage.FileName, fileContent);
+            await File.WriteAllBytesAsync(Path.Combine(DownloadsDirectory, decryptedMessage.FileName), fileContent);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                _messageRepository.Add(new CryptoApp.Models.Message($"Received new file: {decryptedMessage.FileName}")));
         }
         else
         {

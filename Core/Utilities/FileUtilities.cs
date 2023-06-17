@@ -1,23 +1,27 @@
 using System;
 using System.IO;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CryptoApp.Core.Utilities;
 
 public static class FileUtilities
 {
-    public static async Task<string> GetFileCheckSum(string filePath)
+    public static async Task<string> GetFileCheckSumAsync(string filePath)
     {
         using var sha = SHA512.Create();
         await using var fs = File.OpenRead(filePath);
 
-        return Convert.ToBase64String(await sha.ComputeHashAsync(fs));
+        var source = new CancellationTokenSource();
+        source.CancelAfter(5000);
+        return Convert.ToBase64String(await sha.ComputeHashAsync(fs, source.Token));
     }
 
-    public static string GetFileCheckSum(byte[] fileContent)
+    public static async Task<string> GetFileCheckSumAsync(byte[] fileContent)
     {
         using var sha = SHA512.Create();
-        return Convert.ToBase64String(sha.ComputeHash(fileContent));
+        using var ms = new MemoryStream(fileContent);
+        return Convert.ToBase64String(await sha.ComputeHashAsync(ms));
     }
 }

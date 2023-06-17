@@ -1,12 +1,19 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CryptoApp.Communication.Interfaces;
 using CryptoApp.Models;
 using CryptoApp.Repositories.Interfaces;
 using CryptoApp.Services.Interfaces;
+using DynamicData;
 using ReactiveUI;
 
 namespace CryptoApp.ViewModels;
@@ -15,6 +22,7 @@ public class HomeScreenViewModel : ViewModelBase
 {
     private readonly IManageableServer _server;
     private readonly IConnectionService _connectionService;
+    private string[]? _attachedFiles;
     public  IMessageRepository MessageRepository { get; }
     
     private bool _listening;
@@ -47,13 +55,14 @@ public class HomeScreenViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _message, value);
     }
 
-    public int CipherModeIndex { get; set; } = 0;
+    public int CipherModeIndex { get; set; }
     public string? IpAddress { get; set; }
     public string? Port { get; set; }
     public string ServerPort { get; }
     public ReactiveCommand<Unit, Unit> ToggleServerCommand { get; }
     public ReactiveCommand<Unit, Unit> TryToConnectCommand { get; }
     public ReactiveCommand<Unit, Unit> SendCommand { get; }
+    public ReactiveCommand<Unit, Unit> AttachFilesCommand { get; }
 
     public HomeScreenViewModel(IManageableServer server, IConnectionService connectionService, IMessageRepository messageRepository)
     {
@@ -70,6 +79,7 @@ public class HomeScreenViewModel : ViewModelBase
         
         TryToConnectCommand = ReactiveCommand.CreateFromObservable(TryToConnect);
         SendCommand = ReactiveCommand.CreateFromObservable(SendMessage);
+        AttachFilesCommand = ReactiveCommand.CreateFromObservable(AttachFiles);
     }
 
     private IObservable<Unit> TryToConnect()
@@ -95,6 +105,14 @@ public class HomeScreenViewModel : ViewModelBase
             MessageRepository.Add(new Message(Message));
             _connectionService.Mode = IndexToMode();
             await _connectionService.SendTextMessageAsync(Message);
+
+            if (_attachedFiles is not null && _attachedFiles.Length > 0)
+            {
+                var sendTasks = _attachedFiles.Select(path => _connectionService.SendFileAsync(path));
+                await Task.WhenAll(sendTasks.ToArray());
+                _attachedFiles = null;
+            }
+            
             Message = string.Empty;
         });
     }
@@ -107,5 +125,25 @@ public class HomeScreenViewModel : ViewModelBase
             1 => CipherMode.ECB,
             _ => throw new ArgumentOutOfRangeException(nameof(CipherModeIndex))
         };
+    }
+
+    private IObservable<Unit> AttachFiles()
+    {
+        return Observable.StartAsync(async () =>
+        {
+            var openFileDialog = new OpenFileDialog
+            {
+                Title = "Select files to attach",
+                Filters = new List<FileDialogFilter>
+                {
+                    new() { Name = "Text files", Extensions = { "txt" } }
+                }
+            };
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                _attachedFiles = await openFileDialog.ShowAsync(desktop.MainWindow);
+            }
+        });
     }
 }

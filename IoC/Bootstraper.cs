@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Security.Cryptography;
 using CryptoApp.Communication.Interfaces;
 using CryptoApp.Core.Server;
@@ -17,6 +18,10 @@ public static class Bootstraper
 {
     public static void Register(IMutableDependencyResolver services, IReadonlyDependencyResolver resolver)
     {
+        // app folders setup
+        var downloadsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".crypto", "downloads");
+        Directory.CreateDirectory(downloadsDirectory);
+        
         // repositories
         services.RegisterLazySingleton<IMessageRepository>(() => new MessageRepository());
         
@@ -30,7 +35,8 @@ public static class Bootstraper
         ));
         services.RegisterLazySingleton<IConnectionService>(() => new ConnectionService(
             resolver.GetRequiredService<IKeyManagingService>(),
-            resolver.GetRequiredService<ICryptoService>()
+            resolver.GetRequiredService<ICryptoService>(),
+            resolver.GetRequiredService<IMessageRepository>()
         ));
         services.Register<ICryptoService>(() => new CryptoService(
             Aes.Create()
@@ -55,6 +61,6 @@ public static class Bootstraper
             PortUtilities.GetRandomUnusedPort(),
             resolver.GetRequiredService<IKeyManagingService>(),
             resolver.GetRequiredService<IMessageRepository>()
-        ));
+        ) { DownloadsDirectory = downloadsDirectory } );
     }
 }

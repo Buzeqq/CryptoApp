@@ -125,7 +125,8 @@
                         Width="20" 
                         Height="20" 
                         Margin="5 5 16 0" 
-                        Background="Transparent">
+                        Background="Transparent"
+                        Command="{Binding AttachFilesCommand}">
                         <PathIcon Data="{StaticResource AttachRegular}"/>
                     </Button>
                     <Button 
